@@ -7,7 +7,7 @@ requires = ['six', 'ntplib', 'python-dateutil>=2.0']
 
 setup(
     name='ntpfixtime',
-    version='0.0.1',
+    version='0.0.2',
     description='Fix your localtime to use the right ntp time',
     author='Jaison Erick',
     author_email='jaisonreis@mail.com',

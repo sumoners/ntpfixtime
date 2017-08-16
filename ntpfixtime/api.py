@@ -50,13 +50,12 @@ _is_cpython = (
 
 
 class FakeTime(object):
-
     def __init__(self, time_offset, previous_time_function):
         self.time_offset = time_offset
         self.previous_time_function = previous_time_function
 
     def __call__(self):
-        current_time = datetime.datetime.now() + self.time_offset
+        current_time = real_datetime.now() + self.time_offset
         return calendar.timegm(current_time.timetuple()) + current_time.microsecond / 1000000.0
 
 
@@ -69,7 +68,7 @@ class FakeLocalTime(object):
         if t is not None:
             return real_localtime(t)
 
-        return (datetime.datetime.now() + self.time_offset).timetuple()
+        return (real_datetime.now() + self.time_offset).timetuple()
 
 
 class FakeGMTTime(object):
@@ -80,7 +79,7 @@ class FakeGMTTime(object):
     def __call__(self, t=None):
         if t is not None:
             return real_gmtime(t)
-        return (datetime.datetime.utcnow() + self.time_offset).timetuple()
+        return (real_datetime.utcnow() + self.time_offset).timetuple()
 
 
 class FakeStrfTime(object):

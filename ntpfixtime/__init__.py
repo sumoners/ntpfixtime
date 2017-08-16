@@ -7,12 +7,13 @@ ntpfixtime
 
 """
 from .api import fix_time
+from ntplib import NTPException
 
 __title__ = 'ntpfixtime'
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 __author__ = 'Jaison Erick'
 __license__ = 'MIT'
 __copyright__ = 'Copyright 2017 Jaison Erick'
 
 
-__all__ = ["fix_time"]
+__all__ = ["fix_time", 'NTPException']
