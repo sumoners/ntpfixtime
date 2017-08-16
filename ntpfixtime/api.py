@@ -22,6 +22,8 @@ real_strftime = time.strftime
 real_date = datetime.date
 real_datetime = datetime.datetime
 
+time_offset = None
+
 try:
     real_uuid_generate_time = uuid._uuid_generate_time
 except ImportError:
@@ -50,46 +52,30 @@ _is_cpython = (
 
 
 class FakeTime(object):
-    def __init__(self, time_offset, previous_time_function):
-        self.time_offset = time_offset
-        self.previous_time_function = previous_time_function
-
     def __call__(self):
-        current_time = real_datetime.now() + self.time_offset
+        current_time = datetime.datetime.now()
         return calendar.timegm(current_time.timetuple()) + current_time.microsecond / 1000000.0
 
 
 class FakeLocalTime(object):
-    def __init__(self, time_offset, previous_localtime_function=None):
-        self.time_offset = time_offset
-        self.previous_localtime_function = previous_localtime_function
-
     def __call__(self, t=None):
         if t is not None:
             return real_localtime(t)
 
-        return (real_datetime.now() + self.time_offset).timetuple()
+        return datetime.datetime.now().timetuple()
 
 
 class FakeGMTTime(object):
-    def __init__(self, time_offset, previous_gmtime_function):
-        self.time_offset = time_offset
-        self.previous_gmtime_function = previous_gmtime_function
-
     def __call__(self, t=None):
         if t is not None:
             return real_gmtime(t)
-        return (real_datetime.utcnow() + self.time_offset).timetuple()
+        return datetime.datetime.utcnow().timetuple()
 
 
 class FakeStrfTime(object):
-    def __init__(self, time_offset, previous_strftime_function):
-        self.time_offset = time_offset
-        self.previous_strftime_function = previous_strftime_function
-
     def __call__(self, format, time_to_format=None):
         if time_to_format is None:
-            time_to_format = FakeLocalTime(self.time_offset)()
+            time_to_format = FakeLocalTime(time_offset)()
         return real_strftime(format, time_to_format)
 
 
@@ -117,8 +103,6 @@ def date_to_fakedate(date):
 
 
 class FakeDate(with_metaclass(FakeDateMeta, real_date)):
-    time_offset = None
-
     def __new__(cls, *args, **kwargs):
         return real_date.__new__(cls, *args, **kwargs)
 
@@ -139,9 +123,10 @@ class FakeDate(with_metaclass(FakeDateMeta, real_date)):
 
     @classmethod
     def today(cls):
-        result = datetime.datetime.now()
-        if cls.time_offset:
-            result = result + cls.time_offset
+        result = real_datetime.now()
+
+        if time_offset:
+            result = result + time_offset
 
         return date_to_fakedate(result)
 
@@ -153,12 +138,10 @@ FakeDate.max = date_to_fakedate(real_date.max)
 class FakeDatetimeMeta(FakeDateMeta):
     @classmethod
     def __instancecheck__(self, obj):
-        return isinstance(obj, real_datetime)
+        return (obj, real_datetime)
 
 
 class FakeDatetime(with_metaclass(FakeDatetimeMeta, real_datetime, FakeDate)):
-    time_offset = None
-
     def __new__(cls, *args, **kwargs):
         return real_datetime.__new__(cls, *args, **kwargs)
 
@@ -178,18 +161,14 @@ class FakeDatetime(with_metaclass(FakeDatetimeMeta, real_datetime, FakeDate)):
             return result
 
     def astimezone(self, tz=None):
-        if tz is None:
-            tz = tzlocal()
         return datetime_to_fakedatetime(real_datetime.astimezone(self, tz))
 
     @classmethod
     def now(cls, tz=None):
-        now = real_datetime.now()
-        if cls.time_offset:
-            now = now + cls.time_offset
+        now = real_datetime.now(tz)
 
-        if tz:
-            now = tz.fromutc(now.replace(tzinfo=tz))
+        if time_offset:
+            now = now + time_offset
 
         return datetime_to_fakedatetime(now)
 
@@ -203,8 +182,9 @@ class FakeDatetime(with_metaclass(FakeDatetimeMeta, real_datetime, FakeDate)):
     @classmethod
     def utcnow(cls):
         result = real_datetime.utcnow()
-        if cls.time_offset:
-            result = real_datetime.utcnow() + cls.time_offset
+
+        if time_offset:
+            result = real_datetime.utcnow() + time_offset
 
         return datetime_to_fakedatetime(result)
 
@@ -239,22 +219,24 @@ class _fix_time(object):
     def __init__(self, ntp_server, ignore):
         self.ntp_server = ntp_server
         self.ignore = tuple(ignore)
-        self.undo_changes = []
 
     def fix(self):
         self.start()
 
     def start(self):
+        if time_offset:
+            return time_offset
+
         c = ntplib.NTPClient()
-        self.time_offset = datetime.timedelta(seconds=c.request(self.ntp_server).offset)
+        globals()['time_offset'] = datetime.timedelta(seconds=c.request(self.ntp_server).offset)
 
         # Change the modules
         datetime.datetime = FakeDatetime
         datetime.date = FakeDate
-        fake_time = FakeTime(self.time_offset, time.time)
-        fake_localtime = FakeLocalTime(self.time_offset, time.localtime)
-        fake_gmtime = FakeGMTTime(self.time_offset, time.gmtime)
-        fake_strftime = FakeStrfTime(self.time_offset, time.strftime)
+        fake_time = FakeTime()
+        fake_localtime = FakeLocalTime()
+        fake_gmtime = FakeGMTTime()
+        fake_strftime = FakeStrfTime()
         time.time = fake_time
         time.localtime = fake_localtime
         time.gmtime = fake_gmtime
@@ -301,10 +283,10 @@ class _fix_time(object):
                     if fake:
                         setattr(module, module_attribute, fake)
 
-        datetime.datetime.time_offset = self.time_offset
-        datetime.date.time_offset = self.time_offset
+        datetime.datetime.time_offset = time_offset
+        datetime.date.time_offset = time_offset
 
-        return self.time_offset
+        return time_offset
 
 
 def fix_time(ntp_server='br.pool.ntp.org', ignore=None):
@@ -316,6 +298,8 @@ def fix_time(ntp_server='br.pool.ntp.org', ignore=None):
     ignore.append('django.utils.six.moves')
     ignore.append('threading')
     ignore.append('Queue')
+    ignore.append('ntplib')
+    ignore.append('ntpfixtime.ntplib')
     return _fix_time(ntp_server, ignore).fix()
 
 
