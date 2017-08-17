@@ -75,7 +75,7 @@ class FakeGMTTime(object):
 class FakeStrfTime(object):
     def __call__(self, format, time_to_format=None):
         if time_to_format is None:
-            time_to_format = FakeLocalTime(time_offset)()
+            time_to_format = FakeLocalTime()()
         return real_strftime(format, time_to_format)
 
 
