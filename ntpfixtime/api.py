@@ -53,7 +53,7 @@ _is_cpython = (
 
 class FakeTime(object):
     def __call__(self):
-        current_time = datetime.datetime.now()
+        current_time = datetime.datetime.utcnow()
         return calendar.timegm(current_time.timetuple()) + current_time.microsecond / 1000000.0
 
 
