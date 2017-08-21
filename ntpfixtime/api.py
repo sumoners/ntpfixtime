@@ -216,20 +216,33 @@ def pickle_fake_datetime(datetime_):
 
 
 class _fix_time(object):
-    def __init__(self, ntp_server, ignore):
-        self.ntp_server = ntp_server
+    def __init__(self, ignore, ntp_server=None, correct_datetime=None):
         self.ignore = tuple(ignore)
+        self.ntp_server = ntp_server
+        self.correct_datetime = correct_datetime
 
     def fix(self):
-        self.start()
-
-    def start(self):
         if time_offset:
             return time_offset
 
-        c = ntplib.NTPClient()
-        globals()['time_offset'] = datetime.timedelta(seconds=c.request(self.ntp_server).offset)
+        if self.correct_datetime:
+            self.change_offset(self.known_offset())
+            return self.start()
+        else:
+            self.change_offset(self.ntp_offset())
+            return self.start()
 
+    def change_offset(self, offset_in_seconds):
+        globals()['time_offset'] = datetime.timedelta(seconds=offset_in_seconds)
+
+    def ntp_offset(self):
+        c = ntplib.NTPClient()
+        return c.request(self.ntp_server).offset
+
+    def known_offset(self):
+        return (self.correct_datetime - real_datetime.now()).total_seconds()
+
+    def start(self):
         # Change the modules
         datetime.datetime = FakeDatetime
         datetime.date = FakeDate
@@ -300,7 +313,23 @@ def fix_time(ntp_server='br.pool.ntp.org', ignore=None):
     ignore.append('Queue')
     ignore.append('ntplib')
     ignore.append('ntpfixtime.ntplib')
-    return _fix_time(ntp_server, ignore).fix()
+    return _fix_time(ignore,
+                     ntp_server=ntp_server).fix()
+
+
+def fix_time_known(correct_datetime, ignore=None):
+    string_type = str
+
+    if ignore is None:
+        ignore = []
+    ignore.append('six.moves')
+    ignore.append('django.utils.six.moves')
+    ignore.append('threading')
+    ignore.append('Queue')
+    ignore.append('ntplib')
+    ignore.append('ntpfixtime.ntplib')
+    return _fix_time(ignore,
+                     correct_datetime=correct_datetime).fix()
 
 
 # Setup adapters for sqlite
